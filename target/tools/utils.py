@@ -54,6 +54,5 @@ def open_dask(n_workers=8, memory_limit='8GB', local_directory=os.getcwd()):
         client = dask.distributed.Client(cluster)
 
 def close_dask():
-    print("CLOSING DASK")
     client = dask.distributed.get_client()
     client.close()
