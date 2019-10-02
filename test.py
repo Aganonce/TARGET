@@ -1,3 +1,4 @@
+import time
 import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
@@ -21,7 +22,10 @@ def plot_pca(X):
 
 if __name__ == '__main__':
     infile = 'data/small_sample.csv'
-    target = TARGET(verbose=True).train_csv(infile, save=True)
+    
+    start = time.time()
+    target = TARGET(verbose=True).train_csv(infile, save=False)
+    print('Runtime:', time.time() - start)
 
     for c in target.resf_:
         X = StandardScaler().fit_transform(target.resf_[c])
