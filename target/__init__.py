@@ -10,9 +10,6 @@ __maintainer__ = 'James Flamino'
 __email__ = 'flamij@rpi.edu'
 __status__ = 'Production'
 
-import joblib
-import six
-
 import os
 import time
 import pickle
@@ -38,8 +35,16 @@ class TARGET:
     verbose : bool (default: False)
         Verbosity mode.
     
+    workers : int (default: 0)
+        Number of Dask workers to use for parallel computation of response features. Value must be greater
+        than 1 to enable MapReduce functionality.
+
+    nodes_per_thread : int (default: 0)
+        Number of root_ids that will be assigned per worker during parallel computation of the response features.
+        Value must be greater than 1 to enable MapReduce functionality.
+
     outlier_method : str (defaut: IsolationForest):
-        The algorithm used to detect outliers from resF. There are two currently available options:
+        The algorithm used to detect outliers from response features. There are two currently available options:
         IsolationForest and HDBSCAN. Both require only a threshold, but thresholding values will change
         depending on the outlier method. When stream=True the selected method will be responsible for
         the active detection of outliers. When stream=False the selected method will be responsible for
@@ -86,6 +91,8 @@ class TARGET:
 
     Function stream_initialize() is required prior to stream_update() to establish context for the
     outlier detection algorithm.
+
+    resF stands for response features
     '''
     def __init__(self, stream=False, verbose=False, workers=0, nodes_per_thread=0, outlier_method='IsolationForest', thresholds={}, watch_list=[], *args, **kwargs):
         self.stream = stream

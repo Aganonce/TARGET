@@ -8,5 +8,5 @@ setup(name='target',
     author='James Flamino',
     author_email='flamij@rpi.edu',
     packages=['tools'],
-    install_requires = ['numpy', 'sklearn', 'networkx', 'pandas', 'hdbscan', 'matplotlib']
+    install_requires = ['numpy', 'sklearn', 'networkx', 'pandas', 'hdbscan', 'matplotlib', 'dask[complete]']
 )

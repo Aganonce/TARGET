@@ -24,7 +24,7 @@ if __name__ == '__main__':
     infile = 'data/small_sample.csv'
     
     start = time.time()
-    target = TARGET(verbose=True, workers=2, nodes_per_thread=2).train_csv(infile, save=False)
+    target = TARGET(verbose=True).train_csv(infile, save=False)
     print('Runtime:', time.time() - start)
 
     for c in target.resf_:
