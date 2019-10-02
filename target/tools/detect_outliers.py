@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import sys
 import json
 import math
@@ -49,8 +52,6 @@ def detect_outliers(X_c, thresholds=-0.15, outlier_method='IsolationForest', **k
 
 # Given a resF numpy matrix, identify root_ids within the matrix that lie outside the threshold using some outlier algorithm
 def outlier_update(X, threshold=-0.15, outlier_method='IsolationForest', **kwargs):    
-    X = StandardScaler().fit_transform(X)
-
     if outlier_method == 'IsolationForest':
         outliers, outlier_scores = forest_outlier(X, threshold, **kwargs)
     elif outlier_method == 'HDBSCAN':

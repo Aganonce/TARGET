@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='target',
-    version='1.0',
+    version='1.0.0',
     description='Text-Agnostic Response-Generated Event Tracking',
     author='James Flamino',
     author_email='flamij@rpi.edu',

@@ -1,8 +1,25 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+__author__ = 'James Flamino'
+__copyright__ = 'Copyright 2019, SCNARC @ RPI'
+__credits__ = ['James Flamino']
+__license__ = 'GPL'
+__version__ = '1.0.0'
+__maintainer__ = 'James Flamino'
+__email__ = 'flamij@rpi.edu'
+__status__ = 'Production'
+
+import joblib
+import six
+
 import os
 import time
 import pickle
 import numpy as np
 import pandas as pd
+from dask import delayed
+import tools.utils as utils
 from datetime import datetime
 from tools.generate_resf import generate_resf as _generate_resf
 from tools.detect_outliers import outlier_update as _outlier_update
@@ -70,9 +87,15 @@ class TARGET:
     Function stream_initialize() is required prior to stream_update() to establish context for the
     outlier detection algorithm.
     '''
-    def __init__(self, stream=False, verbose=False, outlier_method='IsolationForest', thresholds={}, watch_list=[], *args, **kwargs):
+    def __init__(self, stream=False, verbose=False, workers=0, nodes_per_thread=0, outlier_method='IsolationForest', thresholds={}, watch_list=[], *args, **kwargs):
         self.stream = stream
         self.verbose = verbose
+        
+        self.workers = workers
+        self.nodes_per_thread = nodes_per_thread
+        if workers > 1 and nodes_per_thread > 1:
+            utils.open_dask(n_workers = workers)
+        
         self.outlier_method = outlier_method
         self.outlier_kwargs = kwargs
         if stream:
@@ -155,7 +178,7 @@ class TARGET:
 
                 return self
             else:
-                resf = _assemble_response_features(infile, self.verbose, evolving=evolving, time_steps=time_steps, time_grain=time_grain)
+                resf = _assemble_response_features(infile, self.verbose, self.workers, self.nodes_per_thread, evolving=evolving, time_steps=time_steps, time_grain=time_grain)
 
                 if save:
                     if isinstance(infile, pd.DataFrame):
@@ -165,6 +188,9 @@ class TARGET:
 
                 self.resf_, self.node_maps_ = _compress_resf(resf, evolving)
                 outliers, self.outlier_scores_ = _detect_outliers(self.resf_, outlier_method=self.outlier_method, **self.outlier_kwargs)
+
+                if self.workers > 1 and self.nodes_per_thread > 1:
+                    utils.close_dask()
 
                 return self
 
@@ -186,18 +212,21 @@ class TARGET:
         '''
         if self.stream:
             if isinstance(infile, pd.DataFrame):
-                resf = _assemble_response_features(infile, self.verbose, evolving=False, time_steps=60, time_grain=3600)
+                resf = _assemble_response_features(infile, self.verbose, self.workers, self.nodes_per_thread, evolving=False, time_steps=60, time_grain=3600)
                 _save_resf('cache', resf, self.verbose)
                 self.training_resf, self.training_node_maps = _compress_resf(resf, False)
             else:         
                 if '.csv' in infile:
-                    resf = _assemble_response_features(infile, self.verbose, evolving=False, time_steps=60, time_grain=3600)
+                    resf = _assemble_response_features(infile, self.verbose, self.workers, self.nodes_per_thread, evolving=False, time_steps=60, time_grain=3600)
                     _save_resf(infile, resf, self.verbose)
                     self.training_resf, self.training_node_maps = _compress_resf(resf, False)
                 elif '.pkl' in infile:
                     if self.verbose:
                         print('Loading resF from pickle')
                     self.training_resf, self.training_node_maps = _load_resf(infile, evolving=False)
+
+            if self.workers > 1 and self.nodes_per_thread > 1:
+                utils.close_dask()
         else:
             print('Cannot use initialize_base() when stream=False')
 
@@ -364,7 +393,7 @@ def _load_resf(ofile, evolving=False):
     return _compress_resf(resf, evolving)
 
 # Load cascade data and generate response features (resF) for each unique root_id
-def _assemble_response_features(infile, verbose, evolving=False, time_steps=60, time_grain=3600):
+def _assemble_response_features(infile, verbose, workers, nodes_per_thread, evolving=False, time_steps=60, time_grain=3600):
     if verbose:
         print('Generating resF')
     
@@ -386,13 +415,44 @@ def _assemble_response_features(infile, verbose, evolving=False, time_steps=60, 
         resf[community] = {}
         posts = overall_posts[overall_posts['community'] == community]
 
-        count = 0
-        for post in posts['root_id']:
-            if verbose:
-                print('Scanning root_id: ' + post)
-            resf[community][post] = _get_response_features(df, post, evolving, time_steps, time_grain)
-            count += 1
+        resf[community] = _task_response_features(df, posts['root_id'].values, verbose, evolving, time_steps, time_grain, workers, nodes_per_thread)
     return resf
+
+# Assign the process of generating resF to either a proceedural process (basic for loop) or a parallel process (Dask MapReduce)
+def _task_response_features(df, posts, verbose, evolving, time_steps, time_grain, workers, nodes_per_thread):
+    resf = {}
+    if workers < 2 or nodes_per_thread < 2:
+        for post in posts:
+            if verbose:
+                print('Procedural scanning root_id: ' + post)
+            resf[post] = _get_response_features(df, post, evolving, time_steps, time_grain)
+    else:
+        nodes = utils.partition_nodes(len(posts), nodes_per_thread)
+        scatter_data_kwargs = {'root_ids': posts, 'df': df}
+        map_function_kwargs = {'verbose': verbose, 'evolving': evolving, 'time_steps': time_steps, 'time_grain': time_grain}
+        resf = utils.map_reduce(nodes, 
+                                delayed(_worker_get_response_features), 
+                                delayed(_reduce_dict),
+                                scatter_data_kwargs=scatter_data_kwargs, 
+                                map_function_kwargs=map_function_kwargs).compute()
+    return resf
+
+# Dask worker function for generating resF for a subset of root_ids 
+def _worker_get_response_features(nodes, root_ids, df, verbose, evolving, time_steps, time_grain, *args, **kwargs):
+    root_ids = root_ids[nodes]
+    resf = {}
+    for root_id in root_ids:
+        if verbose:
+            print('Parallel scanning root_id: ' + root_id)
+        resf[root_id] = _get_response_features(df, root_id, evolving, time_steps, time_grain)
+    return resf
+
+# Dask worker function for consolidating resF across workers
+def _reduce_dict(reduce_dict, *args, **kwargs):
+    reduced_dict = reduce_dict[0]
+    for row in reduce_dict[1:]:
+        reduced_dict.update(row)
+    return reduced_dict
 
 # Calculate resF for a target root_id
 def _get_response_features(df, root_id, evolving, time_steps, time_grain):
