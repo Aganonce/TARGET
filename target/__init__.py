@@ -100,8 +100,6 @@ class TARGET:
         
         self.workers = workers
         self.nodes_per_thread = nodes_per_thread
-        if workers > 1 and nodes_per_thread > 1:
-            utils.open_dask(n_workers = workers)
         
         self.outlier_method = outlier_method
         self.outlier_kwargs = kwargs
@@ -197,6 +195,8 @@ class TARGET:
                 outliers, self.outlier_scores_ = _detect_outliers(self.resf_, outlier_method=self.outlier_method, **self.outlier_kwargs)
 
                 if self.workers > 1 and self.nodes_per_thread > 1:
+                    if self.verbose:
+                        print('Closing Dask client')
                     utils.close_dask()
 
                 return self
@@ -233,6 +233,8 @@ class TARGET:
                     self.training_resf, self.training_node_maps = _load_resf(infile, evolving=False)
 
             if self.workers > 1 and self.nodes_per_thread > 1:
+                if self.verbose:
+                    print('Closing Dask client')
                 utils.close_dask()
         else:
             print('Cannot use initialize_base() when stream=False')
@@ -402,7 +404,7 @@ def _load_resf(ofile, evolving=False):
 # Load cascade data and generate response features (resF) for each unique root_id
 def _assemble_response_features(infile, verbose, workers, nodes_per_thread, evolving=False, time_steps=60, time_grain=3600):
     if verbose:
-        print('Generating resF')
+        print('Loading data')
     
     resf = {}
 
@@ -418,6 +420,14 @@ def _assemble_response_features(infile, verbose, workers, nodes_per_thread, evol
     
     communities = df.drop_duplicates('community')
     
+    if verbose:
+        print('Generating resF')
+
+    if workers > 1 and nodes_per_thread > 1:
+        if verbose:
+            print('Initializing Dask client')
+        utils.open_dask(n_workers = workers)
+
     for community in communities['community']:
         resf[community] = {}
         posts = overall_posts[overall_posts['community'] == community]
@@ -426,7 +436,7 @@ def _assemble_response_features(infile, verbose, workers, nodes_per_thread, evol
     return resf
 
 # Assign the process of generating resF to either a proceedural process (basic for loop) or a parallel process (Dask MapReduce)
-def _task_response_features(df, posts, verbose, evolving, time_steps, time_grain, workers, nodes_per_thread):
+def _task_response_features(df, posts, verbose, evolving, time_steps, time_grain, workers, nodes_per_thread):    
     resf = {}
     if workers < 2 or nodes_per_thread < 2:
         for post in posts:
