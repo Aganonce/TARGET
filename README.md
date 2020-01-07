@@ -1,6 +1,6 @@
 # TARGET
 
-The **T**ext-**A**gnostic, **R**esponse-**G**enerated **E**vent **T**racking pipeline.
+An advanced online feature-based event detection pipeline.
 
 ## Setup
 
