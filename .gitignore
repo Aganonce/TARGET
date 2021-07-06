@@ -222,3 +222,4 @@ plots/
 # TARGET Dask files
 .dirlock
 .lock
+/dask-worker-space
