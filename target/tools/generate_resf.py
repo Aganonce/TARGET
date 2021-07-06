@@ -74,7 +74,8 @@ def generate_resf(data, root_id, get_depth = True, get_breadth = True, get_longe
     del depth
     
     initial_nodes = list(set([lookup[x] for x in data[data["root_id"] == data["parent_id"]]["id_h"].values]))
-    for subG in list(nx.connected_component_subgraphs(G)):
+    subgraph_list = list(G.subgraph(c) for c in nx.connected_components(G))
+    for subG in subgraph_list:
         source = -1
 
         subG_nodes = list(subG)

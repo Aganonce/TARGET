@@ -20,7 +20,7 @@ def map_reduce(partition, map_function, reduce_function, scatter_data_kwargs={},
     partition = [map_function(indices, **scatter_data_kwargs, **map_function_kwargs) for indices in partition]
 
     partition_mapping = partition_nodes(len(partition), 2)
-    if len(np.array(partition_mapping).ravel()) % 2:
+    if len(np.array(partition_mapping, dtype=object).ravel()) % 2:
         partition_mapping[-2:] = [np.concatenate((partition_mapping[-2], partition_mapping[-1]), axis=None)]
 
     partition = [reduce_function(partition[indices[0]:indices[-1]+1], **reduce_function_kwargs) for indices in partition_mapping]

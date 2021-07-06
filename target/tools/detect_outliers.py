@@ -19,11 +19,10 @@ def hdbscan_outlier(X, threshold, min_cluster_size=2, **kwargs):
     return outliers, clusterer.outlier_scores_
 
 # Identify outliers using the IsolationForest method
-def forest_outlier(X, threshold, behaviour='new', max_samples='auto', random_state=1234, contamination='auto', **kwargs):
+def forest_outlier(X, threshold, max_samples='auto', random_state=1234, contamination='auto', **kwargs):
     X = StandardScaler().fit_transform(X)
 
-    clf = IsolationForest(behaviour=behaviour, max_samples=max_samples,
-                        random_state=random_state, contamination=contamination)
+    clf = IsolationForest(max_samples=max_samples, random_state=random_state, contamination=contamination)
     clf.fit(X)
     outlier_scores = clf.decision_function(X)
 
