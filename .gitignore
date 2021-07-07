@@ -218,6 +218,9 @@ dmypy.json
 # TARGET auxilliary folders
 cache/
 plots/
+/config
+/archive
+/output
 
 # TARGET Dask files
 .dirlock
